@@ -73,7 +73,7 @@ chat_container = st.container()
 
 # Voice input component using HTML/JavaScript
 def voice_input():
-    components.html(
+    return components.html(
         """
         <script>
         const sendMessageToStreamlit = (message) => {
