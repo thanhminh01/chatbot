@@ -9,66 +9,12 @@ import streamlit.components.v1 as components
 load_dotenv()
 
 st.set_page_config(
-    page_title="Voice Chat with Mistral", 
-    page_icon="🎙️",
-    layout="wide"
+    page_title="Voice Recognition App", 
+    page_icon="🎙️"
 )
 
-# Initialize session state variables
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "recording" not in st.session_state:
-    st.session_state.recording = False
-if "transcription" not in st.session_state:
-    st.session_state.transcription = ""
-
-st.title("Voice Chat with Mistral AI")
-st.write("Have a conversation with Mistral using your voice!")
-
-# Sidebar for configuration
-with st.sidebar:
-    st.header("Configuration")
-    
-    # API key input
-    api_key = st.text_input(
-        "Enter your Mistral API key",
-        value=os.getenv("MISTRAL_API_KEY", ""),
-        type="password"
-    )
-    
-    # Model selection
-    model = st.selectbox(
-        "Select Mistral model",
-        [
-            "mistral-tiny",
-            "mistral-small",
-            "mistral-medium",
-            "mistral-large-latest"
-        ],
-        index=0
-    )
-    
-    # Save API key option
-    if st.button("Save API Key"):
-        if not api_key:
-            st.error("Please enter an API key to save.")
-        else:
-            try:
-                with open(".env", "w") as f:
-                    f.write(f"MISTRAL_API_KEY={api_key}")
-                st.success("API key saved to .env file!")
-            except Exception as e:
-                st.error(f"Failed to save API key: {str(e)}")
-    
-    st.divider()
-    
-    # Clear conversation button
-    if st.button("Clear Conversation"):
-        st.session_state.messages = []
-        st.rerun()
-
-# Main chat area
-chat_container = st.container()
+st.title("Simple Voice Recognition")
+st.write("Click the microphone button and speak to see the transcription.")
 
 # Voice input component using HTML/JavaScript
 def voice_input():
@@ -236,117 +182,51 @@ def voice_input():
         key="voice_input_component"
     )
 
-# Display chat messages
-with chat_container:
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-
-# Function to call Mistral API
-def call_mistral_api(messages, api_key, model):
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-    
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 500
-    }
-    
-    response = requests.post(
-        "https://api.mistral.ai/v1/chat/completions",
-        headers=headers,
-        data=json.dumps(payload)
-    )
-    
-    if response.status_code == 200:
-        return response.json()
-    else:
-        st.error(f"API Error: {response.status_code}")
-        st.code(response.text)
-        return None
-
-# Text input for typing
-text_input = st.text_input("Type your message:", key="text_input")
-if text_input:
-    # Add user message to chat
-    st.session_state.messages.append({"role": "user", "content": text_input})
-    
-    # Display user message
-    with chat_container:
-        with st.chat_message("user"):
-            st.write(text_input)
-    
-    # Get AI response if API key is provided
-    if api_key:
-        with st.spinner("Mistral is thinking..."):
-            # Format messages for API
-            api_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-            
-            # Call API
-            result = call_mistral_api(api_messages, api_key, model)
-            
-            if result:
-                ai_response = result["choices"][0]["message"]["content"]
-                
-                # Add AI response to chat
-                st.session_state.messages.append({"role": "assistant", "content": ai_response})
-                
-                # Display AI response
-                with chat_container:
-                    with st.chat_message("assistant"):
-                        st.write(ai_response)
-    else:
-        st.warning("Please enter your Mistral API key in the sidebar.")
-    
-    # Rerun to update UI
-    st.rerun()
+# Initialize session state for transcriptions
+if "transcriptions" not in st.session_state:
+    st.session_state.transcriptions = []
 
 # Voice input section
-st.subheader("Or speak your message:")
 voice_result = voice_input()
+
+# Display area for transcription
+st.subheader("Transcription:")
+transcription_placeholder = st.empty()
 
 # Handle voice input results
 if voice_result:
     if voice_result.get("status") == "final":
         transcription = voice_result.get("transcript", "")
         if transcription:
-            # Add user message to chat
-            st.session_state.messages.append({"role": "user", "content": transcription})
-            
-            # Get AI response if API key is provided
-            if api_key:
-                with st.spinner("Mistral is thinking..."):
-                    # Format messages for API
-                    api_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-                    
-                    # Call API
-                    result = call_mistral_api(api_messages, api_key, model)
-                    
-                    if result:
-                        ai_response = result["choices"][0]["message"]["content"]
-                        
-                        # Add AI response to chat
-                        st.session_state.messages.append({"role": "assistant", "content": ai_response})
-            
-            # Rerun to update UI
-            st.rerun()
+            # Add to transcription history
+            st.session_state.transcriptions.append(transcription)
+            # Display the transcription
+            transcription_placeholder.write(f"You said: {transcription}")
+    
+    elif voice_result.get("status") == "error":
+        st.error(f"Error: {voice_result.get('error', 'Unknown error')}")
     
     elif voice_result.get("status") == "unsupported":
         st.error("Speech recognition is not supported in your browser. Please use a modern browser like Chrome.")
 
-# Instructions at the bottom
-with st.expander("How to use this app"):
-    st.markdown("""
-    1. Enter your Mistral API key in the sidebar
-    2. Choose a Mistral model
-    3. Start a conversation by:
-       - Typing in the text box, or
-       - Clicking the microphone button and speaking
-    4. View the conversation history above
-    5. Clear the conversation using the button in the sidebar
-    """)
+# Display transcription history
+if st.session_state.transcriptions:
+    st.subheader("Transcription History:")
+    for i, text in enumerate(st.session_state.transcriptions):
+        st.write(f"{i+1}. {text}")
+
+# Clear history button
+if st.button("Clear History"):
+    st.session_state.transcriptions = []
+    st.rerun()
+
+# Instructions
+st.markdown("""
+### How to use:
+1. Click the microphone button
+2. Speak clearly into your microphone
+3. The transcription will appear above
+4. Click the button again to stop recording
+""")
+
+st.info("Note: This app uses your browser's built-in speech recognition. It works best in Chrome and other Chromium-based browsers.")
