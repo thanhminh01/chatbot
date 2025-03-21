@@ -1,56 +1,107 @@
 import streamlit as st
-from openai import OpenAI
+import requests
+import json
+import os
+from dotenv import load_dotenv
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+# Load environment variables from .env file (if it exists)
+load_dotenv()
+
+st.set_page_config(page_title="Mistral API Tester", page_icon="🤖")
+
+st.title("Mistral API Key Tester")
+st.write("This app tests if your Mistral API key is working correctly.")
+
+# API key input
+api_key = st.text_input(
+    "Enter your Mistral API key",
+    value=os.getenv("MISTRAL_API_KEY", ""),
+    type="password"
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# Model selection
+model = st.selectbox(
+    "Select Mistral model to test",
+    [
+        "mistral-tiny",
+        "mistral-small",
+        "mistral-medium",
+        "mistral-large-latest"
+    ],
+    index=0
+)
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# Test prompt
+test_prompt = st.text_area(
+    "Test prompt",
+    value="Hello, can you tell me a short joke?",
+    height=100
+)
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Test button
+if st.button("Test API Connection"):
+    if not api_key:
+        st.error("Please enter your Mistral API key.")
+    else:
+        with st.spinner("Testing API connection..."):
+            try:
+                headers = {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {api_key}"
+                }
+                
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": test_prompt}],
+                    "temperature": 0.7,
+                    "max_tokens": 200
+                }
+                
+                response = requests.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers=headers,
+                    data=json.dumps(payload)
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success("✅ API connection successful!")
+                    
+                    # Display response
+                    st.subheader("API Response:")
+                    response_content = result["choices"][0]["message"]["content"]
+                    st.markdown(response_content)
+                    
+                    # Display raw JSON for debugging
+                    with st.expander("View raw API response"):
+                        st.json(result)
+                else:
+                    st.error(f"❌ API Error: {response.status_code}")
+                    st.code(response.text)
+            
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Save API key option
+if st.checkbox("Save API key to .env file"):
+    if st.button("Save API Key"):
+        if not api_key:
+            st.error("Please enter an API key to save.")
+        else:
+            try:
+                with open(".env", "w") as f:
+                    f.write(f"MISTRAL_API_KEY={api_key}")
+                st.success("API key saved to .env file!")
+            except Exception as e:
+                st.error(f"Failed to save API key: {str(e)}")
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
-
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
-
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+st.divider()
+st.markdown("### How to use this app")
+st.markdown("""
+1. Enter your Mistral API key in the field above
+2. Select a model to test
+3. Optionally modify the test prompt
+4. Click "Test API Connection"
+5. If successful, you'll see the model's response below
+""")
