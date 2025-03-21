@@ -3,7 +3,6 @@ import requests
 import json
 import os
 from dotenv import load_dotenv
-import time
 import streamlit.components.v1 as components
 
 # Load environment variables from .env file (if it exists)
@@ -304,7 +303,7 @@ if text_input:
     else:
         st.warning("Please enter your Mistral API key in the sidebar.")
     
-    # Use this instead to rerun without trying to modify the widget value directly
+    # Rerun to update UI and clear input
     st.rerun()
 
 # Voice input section
