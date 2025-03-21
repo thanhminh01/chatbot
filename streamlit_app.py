@@ -304,8 +304,7 @@ if text_input:
     else:
         st.warning("Please enter your Mistral API key in the sidebar.")
     
-    # Clear the text input
-    st.session_state.text_input = ""
+    # Use this instead to rerun without trying to modify the widget value directly
     st.rerun()
 
 # Voice input section
